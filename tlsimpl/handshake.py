@@ -8,40 +8,44 @@ import secrets
 from typing import Any
 import cryptoimpl
 
+import random
+
 from tlsimpl import client, cryptoimpl, util
 from tlsimpl.consts import *
+from tlsimpl.client_hello_extensions import *
+
+
+def record_header():
+
+    
 
 def client_version():
     cv = b'\x03\x03'
     return cv
 
 def client_random():
-    
+    client_rand = random.randbytes(32)
+    return client_rand
 
-def supported_ver_ext():
+def session_id():
+    sess_id = b'\x00'
+    return sess_id
 
-    ext_identifier = b'\x00\x2b'
-    overall_ext_sz = b'\x00\x03' # Overall extension size = 3
-    tls_ver_specifier_sz = b'\x02' # Size of TLS version specifier = 2
-    tls_ver = b'\x03\x04' # Specifier for TLS version 1.3 => 03 04
+def cipher_suites():
+    suite_count = b'\x00\x02'
+    ciphers = b'\x01x\13x\02'
+    return suite_count + ciphers
 
-    return ext_identifier + overall_ext_sz + tls_ver_specifier_sz + tls_ver
+def compression_methods():
+    return b'x\01\x00'
 
-def sign_alg_ext():
-    ext_identifier = b'\x00\x0d'
-    overall_ext_sz = b'\x00\x02'
-    data_ext_sz = b'\x00\x02'
-    sign_alg_list = SignatureScheme.RSA_PSS_RSAE_SHA256.to_bytes(length=2, byteorder='big')
+def create_client_hello_msg():
+    client_msg = client_version() + client_random() + session_id() + cipher_suites() + compression_methods() 
+    ext = supported_ver_ext() + sign_alg_ext() + supported_groups_ext() + key_share_ext()
 
-    return ext_identifier + overall_ext_sz + data_ext_sz + sign_alg_list
+    ext_len = len(ext).to_bytes(length=2, byteorder='big')
 
-def supported_groups_ext():
-    ext_identifier = b'\x00\x0a'
-    overall_ext_sz = b'\x00\x02' 
-    data_ext_sz = b'\x00\x02'
-    group_identifiers = b'\x00\x1d'
-
-    return ext_identifier + overall_ext_sz + data_ext_sz + group_identifiers  
+    return client_msg + ext_len
 
 def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     """
@@ -55,11 +59,6 @@ def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     # TODO: construct the packet data
 
     sock.send_handshake_record(HandshakeType.CLIENT_HELLO, b"".join(packet))
-
-def key_share_ext(key_exchange_pubkey: bytes): 
-    key_share_ext_identifier = b'\x00\x33'
-    key_share_follow = b'\x00\x26'
-    data_follow = b'\x00\x24'
 
 def recv_server_hello(sock: client.TLSSocket) -> Any:
     # TODO: parse the server hello data
