@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import secrets
 from typing import Any
-import cryptoimpl
 
 import random
 
@@ -15,9 +14,11 @@ from tlsimpl.consts import *
 from tlsimpl.client_hello_extensions import *
 
 
-def record_header():
+def record_header(msg):
+    ver = b'\x03\x01'
+    msg_len = len(msg).to_bytes(length=2, byteorder='big')
 
-    
+    return b'\x16' + ver + msg_len + msg
 
 def client_version():
     cv = b'\x03\x03'
@@ -57,6 +58,9 @@ def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     """
     packet = []
     # TODO: construct the packet data
+
+    msg = create_client_hello_msg()
+    packet = record_header(msg)
 
     sock.send_handshake_record(HandshakeType.CLIENT_HELLO, b"".join(packet))
 
