@@ -13,13 +13,6 @@ from tlsimpl import client, cryptoimpl, util
 from tlsimpl.consts import *
 from tlsimpl.client_hello_extensions import *
 
-
-def record_header(msg):
-    ver = b'\x03\x01'
-    msg_len = len(msg).to_bytes(length=2, byteorder='big')
-
-    return b'\x16' + ver + msg_len + msg
-
 def client_version():
     cv = b'\x03\x03'
     return cv
@@ -34,19 +27,23 @@ def session_id():
 
 def cipher_suites():
     suite_count = b'\x00\x02'
-    ciphers = b'\x01x\13x\02'
+    ciphers = b'\x13\x02'
+
     return suite_count + ciphers
 
 def compression_methods():
-    return b'x\01\x00'
+    return b'\x01\x00'
 
-def create_client_hello_msg():
+def create_client_hello_msg(key_exchange_pubkey: bytes):
     client_msg = client_version() + client_random() + session_id() + cipher_suites() + compression_methods() 
-    ext = supported_ver_ext() + sign_alg_ext() + supported_groups_ext() + key_share_ext()
+    ext = supported_ver_ext() + sign_alg_ext() + supported_groups_ext() + key_share_ext(key_exchange_pubkey)
 
     ext_len = len(ext).to_bytes(length=2, byteorder='big')
 
-    return client_msg + ext_len
+    print("Len", ext_len)
+    print("Ext", ext)
+
+    return client_msg + ext_len + ext
 
 def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     """
@@ -57,16 +54,19 @@ def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     Specified in RFC8446 section 4.1.2.
     """
     packet = []
-    # TODO: construct the packet data
 
-    msg = create_client_hello_msg()
-    packet = record_header(msg)
+    packet = create_client_hello_msg(key_exchange_pubkey)
 
-    sock.send_handshake_record(HandshakeType.CLIENT_HELLO, b"".join(packet))
+    print("Msg")
+    print(packet)
+
+    sock.send_handshake_record(HandshakeType.CLIENT_HELLO, packet)
 
 def recv_server_hello(sock: client.TLSSocket) -> Any:
     # TODO: parse the server hello data
-    pass
+    print("check")
+
+    return "Hello"
 
 def perform_handshake(sock: client.TLSSocket) -> None:
     key_exchange_keypair = cryptoimpl.generate_ed25519_keypair()

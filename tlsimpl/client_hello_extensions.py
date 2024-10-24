@@ -12,7 +12,7 @@ def sign_alg_ext():
     ext_identifier = ExtensionType.SIGNATURE_ALGORITHMS.to_bytes(length=2, byteorder='big')
     overall_ext_sz = b'\x00\x04'
     ext_data_sz = b'\x00\x02'
-    sign_alg_list = SignatureScheme.ED25519.to_bytes(length=2, byteorder='big')
+    sign_alg_list = SignatureScheme.RSA_PSS_RSAE_SHA384.to_bytes(length=2, byteorder='big')
 
     return ext_identifier + overall_ext_sz + ext_data_sz + sign_alg_list
 
@@ -32,4 +32,3 @@ def key_share_ext(key_exchange_pubkey: bytes):
     key_len = b'\x00\x20'
 
     return ext_identifier + overall_ext_sz + ext_data_sz + elliptic_curve_identifier + key_len + key_exchange_pubkey
-    
