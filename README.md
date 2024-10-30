@@ -1,2 +1,2 @@
 # TLS Lab Skeleton
-This is the **skeleton implementation** for TLS Lab.
+This is the **code skeleton** for TLS Lab.

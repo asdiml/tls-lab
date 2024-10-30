@@ -9,7 +9,7 @@ from tlsimpl.client import TLSSocket
 proc = None
 try:
     openssl_version = subprocess.run(
-        ["openssl", "-version"],
+        ["openssl", "version"],
         stdin=subprocess.DEVNULL,
         capture_output=True,
         check=True,
@@ -37,7 +37,6 @@ try:
                 "server.key",
                 "-out",
                 "server.csr",
-                "-quiet",
             ],
             cwd=cert_dir,
             check=True,
