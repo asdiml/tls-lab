@@ -12,6 +12,7 @@ import random
 from tlsimpl import client, cryptoimpl, util
 from tlsimpl.consts import *
 from tlsimpl.client_hello.extensions import *
+from tlsimpl.util import *
 
 def record_header(msg):
     ver = b'x\03\x01'
@@ -45,9 +46,6 @@ def create_client_hello_msg(key_exchange_pubkey: bytes):
 
     ext_len = len(ext).to_bytes(length=2, byteorder='big')
 
-    print("Len", ext_len)
-    print("Ext", ext)
-
     return client_msg + ext_len + ext
 
 def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
@@ -63,6 +61,9 @@ def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
 
     sock.send_handshake_record(HandshakeType.CLIENT_HELLO, packet)
 
+def extract_byte_substr(n, data: bytes) -> tuple[bytes, bytes]:
+    return (data[:n], data[n:])
+
 def recv_server_hello(sock: client.TLSSocket) -> bytes:
     """
     Parses the TLS v1.3 server hello.
@@ -73,11 +74,34 @@ def recv_server_hello(sock: client.TLSSocket) -> bytes:
     """
     (ty, data) = sock.recv_handshake_record()
     assert ty == HandshakeType.SERVER_HELLO
-    # TODO: parse server hello and find server pubkey
-    peer_pubkey = b"???"
-    return peer_pubkey
 
-    return "Hello"
+    (serv_tls_ver, data) = extract_byte_substr(2, data)
+    (serv_random, data) = extract_byte_substr(32, data)
+    (sess_id, data)= unpack_varlen(data, len_width=1)
+    (cipher_suite, data) = extract_byte_substr(2, data)
+    (compress, data) = extract_byte_substr(1, data)
+    cipher_suite = consts.CipherSuite(unpack(cipher_suite))
+
+    print(f"{serv_tls_ver=}")
+    print(f"{serv_random=}")
+    print(f"{sess_id=}")
+    print(f"{cipher_suite=}")
+    print(f"{compress=}")
+
+    data, rem = unpack_varlen(data) # Extract extension data
+    assert rem == b''
+
+    ext_list = []
+    while data != b'':
+        ext_type, ext_contents, data = unpack_extension(data)
+        ext_list.append((ext_type, ext_contents))
+
+        if ext_type == consts.ExtensionType.KEY_SHARE:
+            if consts.NamedGroup(unpack(ext_contents[:2])) == consts.NamedGroup.X25519:
+                peer_pubkey, _ = unpack_varlen(ext_contents[2:])
+
+    print(f"{ext_list=}")
+    return peer_pubkey
 
 def perform_handshake(sock: client.TLSSocket) -> None:
     key_exchange_keypair = cryptoimpl.generate_x25519_keypair()
