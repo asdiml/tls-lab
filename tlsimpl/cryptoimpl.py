@@ -65,6 +65,7 @@ class AESParams:
     AES-GCM parameters using an incrementing sequence number to be XORed with initial nonce.
     """
 
+    original_secret: bytes
     key: bytes
     initial_nonce: int
     seq_num: int = 0
@@ -92,17 +93,62 @@ class AESParams:
         return AESGCM(self.key).decrypt(self.get_nonce(), msg, aad)
 
 
-def derive_aes_params(
+def derive_handshake_params(
     shared_secret: bytes, transcript_hash: bytes
-) -> tuple[AESParams, AESParams]:
+) -> tuple[bytes, AESParams, AESParams]:
     """
-    Given the shared secret and transcript hash, return a (client, server) tuple of AES parameters.
+    Given the shared secret and transcript hash, return a (handshake secret, client params, server params) tuple.
+
+    Used for handshake key derivation.
     """
-    # TODO: derive client/server key/iv
+    # TODO: derive necessary secrets
+    handshake_secret = b"???"
+    client_secret = b"???"
+    server_secret = b"???"
     client_key = b"???"
     client_iv = b"???"
     server_key = b"???"
     server_iv = b"???"
-    client_params = AESParams(client_key, util.unpack(client_iv))
-    server_params = AESParams(server_key, util.unpack(server_iv))
+    client_params = AESParams(client_secret, client_key, util.unpack(client_iv))
+    server_params = AESParams(server_secret, server_key, util.unpack(server_iv))
+    return (handshake_secret, client_params, server_params)
+
+
+def derive_application_params(
+    handshake_secret: bytes, transcript_hash: bytes
+) -> tuple[AESParams, AESParams]:
+    """
+    Given the shared secret and transcript hash, return a (client params, server params) tuple.
+
+    Used for application key derivation.
+    """
+    # TODO: derive client/server key/iv
+    client_secret = b"???"
+    server_secret = b"???"
+    client_key = b"???"
+    client_iv = b"???"
+    server_key = b"???"
+    server_iv = b"???"
+    client_params = AESParams(client_secret, client_key, util.unpack(client_iv))
+    server_params = AESParams(server_secret, server_key, util.unpack(server_iv))
     return (client_params, server_params)
+
+
+def verify_cert(cert_der: bytes, cert_sig: bytes) -> bool:
+    """
+    Given a certificate in DER format, and a signature, check that a certificate is valid.
+
+    Signature should signed using RSA-PSS-RSAE-SHA256.
+    """
+    # TODO: verify certificate
+    return True
+
+
+def compute_finish(secret: bytes, transcript_hash: bytes) -> bytes:
+    """
+    Computes the digest to be used/verified for client/server finish.
+
+    Takes in the client/server secret as well as the transcript hash.
+    """
+    # TODO: compute HMAC
+    return b"???"

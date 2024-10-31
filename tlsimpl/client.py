@@ -49,16 +49,18 @@ class TLSSocket:
 
         Records are specified in RFC8446 section 5.
         """
+        data_len = len(data)
         if self.client_params is not None:
             # disguise as tls 1.2 packet
             data += util.pack(typ)
+            data_len += 17  # 1 for the trailing byte, 16 for auth tag
             typ = RecordType.APPLICATION_DATA
-        header = util.pack(typ) + b"\x03\x03" + util.pack(len(data), 2)
+        header = util.pack(typ) + b"\x03\x03" + util.pack(data_len, 2)
         if self.client_params is not None:
             data = self.client_params.encrypt(data, header)
         self.inner.sendall(header + data)
 
-    def send_handshake_record(self, typ: HandshakeType, data: bytes) -> bytes:
+    def send_handshake_record(self, typ: HandshakeType, data: bytes) -> None:
         """
         Utility function to send a record containing a single handshake message.
 
@@ -68,7 +70,6 @@ class TLSSocket:
         packet = util.pack(typ) + util.pack(len(data), 3) + data
         self.transcript_hash.update(packet)
         self.send_record(RecordType.HANDSHAKE, packet)
-        return packet
 
     def recv_raw(self, length: int):
         """

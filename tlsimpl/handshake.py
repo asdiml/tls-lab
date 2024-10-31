@@ -103,6 +103,24 @@ def recv_server_hello(sock: client.TLSSocket) -> bytes:
     print(f"{ext_list=}")
     return peer_pubkey
 
+def recv_server_info(sock: client.TLSSocket) -> None:
+    """
+    Receives the server's encrypted extensions, certificate, and certificate verification.
+
+    Also verifies the certificate's validity.
+    """
+    # TODO: implement
+
+
+def finish_handshake(sock: client.TLSSocket, handshake_secret: bytes) -> None:
+    """
+    Receives the server finish, sends the client finish, and derives the application keys.
+
+    Takes in the shared secret from key exchange.
+    """
+    # TODO: implement
+
+
 def perform_handshake(sock: client.TLSSocket) -> None:
     key_exchange_keypair = cryptoimpl.generate_x25519_keypair()
     send_client_hello(sock, key_exchange_keypair[1])
@@ -111,8 +129,10 @@ def perform_handshake(sock: client.TLSSocket) -> None:
         key_exchange_keypair[0], peer_pubkey
     )
     transcript_hash = sock.transcript_hash.digest()
-    (sock.client_params, sock.server_params) = cryptoimpl.derive_aes_params(
-        shared_secret, transcript_hash
+    (handshake_secret, sock.client_params, sock.server_params) = (
+        cryptoimpl.derive_handshake_params(shared_secret, transcript_hash)
     )
-    # receive an encrypted handshake record to verify decryption works
-    print("got record:", sock.recv_handshake_record())
+    recv_server_info(sock)
+    finish_handshake(sock, handshake_secret)
+    # receive an encrypted record to make sure everything works
+    print(sock.recv_record())
