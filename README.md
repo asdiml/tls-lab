@@ -20,4 +20,4 @@ from the root directory of the repo. The (fake) server that we will communicate 
 
 Credit is due to the leads of this ACM Cyber lab Jason An, Mark Epstein, Gary Song and Arnav Vora for providing the [base repo](https://github.com/pbrucla/tls-lab-skel) from which this repo was forked. 
 
-The authors of this fork of the project are Teong Seng Tan, Prabvhir Babra, and Lucas ???. 
+The authors of this fork of the project are Teong Seng Tan, Prabvhir Babra, and Luca Tineo. 
