@@ -77,7 +77,7 @@ class AESParams:
         Specified in RFC8446 section 5.3.
         """
         nonce = b"???"
-        # TODO: derive the nonce
+
         return nonce
 
     def encrypt(self, msg: bytes, aad: bytes | None) -> bytes:

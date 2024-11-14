@@ -128,14 +128,18 @@ def perform_handshake(sock: client.TLSSocket) -> None:
     shared_secret = cryptoimpl.derive_shared_x25519_key(
         key_exchange_keypair[0], peer_pubkey
     )
-    print("FUCK YOU")
     transcript_hash = sock.transcript_hash.digest()
-    (handshake_secret, sock.client_params, sock.server_params) = (
+    (handshake_secret, client_secret, server_secret) = (
         cryptoimpl.derive_handshake_params(shared_secret, transcript_hash)
     )
-    print("kILL YOURSELF")
+    sock.client_params = client_secret
+    sock.server_params = server_secret
+
+    client_handshake_key = labeled_sha384_hdkf(secret=client_secret, label="key", ctx="", len=32)
+    server_handshake_key = labeled_sha384_hdkf(secret=server_secret, label="key", ctx="", len=32)
+
+    client_handshake_iv = labeled_sha384_hdkf(secret=client_secret, label="iv", ctx="", len=12)
+    server_handshake_iv = labeled_sha384_hdkf(secret=server_secret, label="iv", ctx="", len=12)
+
     recv_server_info(sock)
     finish_handshake(sock, handshake_secret)
-    print("What is the meaning of life")
-    # receive an encrypted record to make sure everything works
-    print(sock.recv_record())
