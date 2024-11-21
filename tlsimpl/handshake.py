@@ -110,6 +110,15 @@ def recv_server_info(sock: client.TLSSocket) -> None:
     Also verifies the certificate's validity.
     """
     # TODO: implement
+    (ty1, data1) = sock.recv_handshake_record()
+    (ty2, data2) = sock.recv_handshake_record()
+    (ty3, data3) = sock.recv_handshake_record()
+
+    print(ty1)
+    print(ty2)
+    print(ty3)
+
+    return True
 
 
 def finish_handshake(sock: client.TLSSocket, handshake_secret: bytes) -> None:
@@ -118,7 +127,17 @@ def finish_handshake(sock: client.TLSSocket, handshake_secret: bytes) -> None:
 
     Takes in the shared secret from key exchange.
     """
-    # TODO: implement
+
+    (server_finish_ty, server_finish_data) = sock.recv_handshake_record()
+    # TODO: Verify server finish
+
+    
+    # Send client finish
+    # TODO: Move this into cryptoimpl.compute_finish
+    finished_key = cryptoimpl.labeled_sha384_hkdf(secret=sock.client_params.original_secret, label=b"finished", context=b"", length=48)
+    finished_hash = sock.transcript_hash.digest()
+    verify_data = cryptoimpl.sha384_hkdf_extract(salt=finished_key, data=finished_hash)
+    sock.send_handshake_record(HandshakeType.FINISHED, verify_data)
 
 
 def perform_handshake(sock: client.TLSSocket) -> None:
@@ -129,17 +148,24 @@ def perform_handshake(sock: client.TLSSocket) -> None:
         key_exchange_keypair[0], peer_pubkey
     )
     transcript_hash = sock.transcript_hash.digest()
-    (handshake_secret, client_secret, server_secret) = (
+    (handshake_secret, client_params, server_params) = (
         cryptoimpl.derive_handshake_params(shared_secret, transcript_hash)
     )
-    sock.client_params = client_secret
-    sock.server_params = server_secret
+    
+    sock.client_params = client_params
+    sock.server_params = server_params
 
-    client_handshake_key = labeled_sha384_hdkf(secret=client_secret, label="key", ctx="", len=32)
-    server_handshake_key = labeled_sha384_hdkf(secret=server_secret, label="key", ctx="", len=32)
+    # client_handshake_key = cryptoimpl.labeled_sha384_hkdf(secret=client_secret, label=b"key", context=b"", len=32)
+    # server_handshake_key = cryptoimpl.labeled_sha384_hkdf(secret=server_secret, label=b"key", context=b"", len=32)
 
-    client_handshake_iv = labeled_sha384_hdkf(secret=client_secret, label="iv", ctx="", len=12)
-    server_handshake_iv = labeled_sha384_hdkf(secret=server_secret, label="iv", ctx="", len=12)
+    # client_handshake_iv = cryptoimpl.labeled_sha384_hkdf(secret=client_secret, label=b"iv", context=b"", len=12)
+    # server_handshake_iv = cryptoimpl.labeled_sha384_hkdf(secret=server_secret, label=b"iv", context=b"", len=12)
 
     recv_server_info(sock)
     finish_handshake(sock, handshake_secret)
+
+    (client_params, server_params) = (
+        cryptoimpl.derive_application_params(handshake_secret, sock.transcript_hash.digest())
+    )
+
+    print('fuckyou')

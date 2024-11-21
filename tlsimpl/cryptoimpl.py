@@ -76,7 +76,8 @@ class AESParams:
 
         Specified in RFC8446 section 5.3.
         """
-        nonce = b"???"
+        nonce = util.pack(self.initial_nonce ^ self.seq_num, 12)
+        self.seq_num += 1
 
         return nonce
 
@@ -130,13 +131,16 @@ def derive_application_params(
 
     Used for application key derivation.
     """
-    # TODO: derive client/server key/iv
-    client_secret = b"???"
-    server_secret = b"???"
-    client_key = b"???"
-    client_iv = b"???"
-    server_key = b"???"
-    server_iv = b"???"
+    empty_hash = hashlib.sha384(b"").digest()
+    derived_secret = labeled_sha384_hkdf(secret=handshake_secret, label=b"derived", context=empty_hash, length=48)
+    master_secret = sha384_hkdf_extract(salt=derived_secret, data=b'\x00' * 48)
+
+    client_secret = labeled_sha384_hkdf(secret=master_secret, label=b"c ap traffic", context=transcript_hash, length=48)
+    server_secret = labeled_sha384_hkdf(secret=master_secret, label=b"s ap traffic", context=transcript_hash, length=48)
+    client_key = labeled_sha384_hkdf(secret=client_secret, label=b"key", context=b"", length=32)
+    client_iv = labeled_sha384_hkdf(secret=client_secret, label=b"iv", context=b"", length=12)
+    server_key = labeled_sha384_hkdf(secret=server_secret, label=b"key", context=b"", length=32)
+    server_iv = labeled_sha384_hkdf(secret=server_secret, label=b"iv", context=b"", length=12)
     client_params = AESParams(client_secret, client_key, util.unpack(client_iv))
     server_params = AESParams(server_secret, server_key, util.unpack(server_iv))
     return (client_params, server_params)
@@ -159,4 +163,5 @@ def compute_finish(secret: bytes, transcript_hash: bytes) -> bytes:
     Takes in the client/server secret as well as the transcript hash.
     """
     # TODO: compute HMAC
+    
     return b"???"
