@@ -1,6 +1,8 @@
-from tlsimpl import cryptoimpl
-from tlsimpl.cryptoimpl import *
+import sys, os
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../"))
+sys.path.insert(0, parent_dir)
 
+from tlsimpl import cryptoimpl
 
 def test_handshake_key_derivation():
     # same values as the one on https://tls13.xargs.org/#server-handshake-keys-calc

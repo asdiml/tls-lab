@@ -7,46 +7,11 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
-import random
-
 from tlsimpl import client, cryptoimpl, util
 from tlsimpl.consts import *
-from tlsimpl.client_hello.extensions import *
+from tlsimpl.client_hello import *
 from tlsimpl.util import *
 
-def record_header(msg):
-    ver = b'x\03\x01'
-    msg_len = len(msg).to_bytes(length=2, byteorder='big')
-    return 'x\16' + ver + msg_len + msg
-    
-def client_version():
-    cv = b'\x03\x03'
-    return cv  
-
-def client_random():
-    client_rand = random.randbytes(32)
-    return client_rand
-
-def session_id():
-    sess_id = b'\x00'
-    return sess_id
-
-def cipher_suites():
-    suite_count = b'\x00\x02'
-    ciphers = b'\x13\x02'
-
-    return suite_count + ciphers
-
-def compression_methods():
-    return b'\x01\x00'
-
-def create_client_hello_msg(key_exchange_pubkey: bytes):
-    client_msg = client_version() + client_random() + session_id() + cipher_suites() + compression_methods() 
-    ext = supported_ver_ext() + sign_alg_ext() + supported_grps_ext() + key_share_ext(key_exchange_pubkey)
-
-    ext_len = len(ext).to_bytes(length=2, byteorder='big')
-
-    return client_msg + ext_len + ext
 
 def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
     """
@@ -56,13 +21,9 @@ def send_client_hello(sock, key_exchange_pubkey: bytes) -> None:
 
     Specified in RFC8446 section 4.1.2.
     """
-    packet = create_client_hello_msg(key_exchange_pubkey)
-    print(f"Client hello packet: {packet}")
+    client_hello_data = client_hello_without_ext() + client_hello_exts(key_exchange_pubkey)
+    sock.send_handshake_record(HandshakeType.CLIENT_HELLO, client_hello_data)
 
-    sock.send_handshake_record(HandshakeType.CLIENT_HELLO, packet)
-
-def extract_byte_substr(n, data: bytes) -> tuple[bytes, bytes]:
-    return (data[:n], data[n:])
 
 def recv_server_hello(sock: client.TLSSocket) -> bytes:
     """
@@ -82,12 +43,6 @@ def recv_server_hello(sock: client.TLSSocket) -> bytes:
     (compress, data) = extract_byte_substr(1, data)
     cipher_suite = consts.CipherSuite(unpack(cipher_suite))
 
-    print(f"{serv_tls_ver=}")
-    print(f"{serv_random=}")
-    print(f"{sess_id=}")
-    print(f"{cipher_suite=}")
-    print(f"{compress=}")
-
     data, rem = unpack_varlen(data) # Extract extension data
     assert rem == b''
 
@@ -96,6 +51,7 @@ def recv_server_hello(sock: client.TLSSocket) -> bytes:
         ext_type, ext_contents, data = unpack_extension(data)
         ext_list.append((ext_type, ext_contents))
 
+        # Grab the server's public key for the HMAC-based Key Derivation Function
         if ext_type == consts.ExtensionType.KEY_SHARE:
             if consts.NamedGroup(unpack(ext_contents[:2])) == consts.NamedGroup.X25519:
                 peer_pubkey, _ = unpack_varlen(ext_contents[2:])
@@ -103,69 +59,111 @@ def recv_server_hello(sock: client.TLSSocket) -> bytes:
     print(f"{ext_list=}")
     return peer_pubkey
 
+
 def recv_server_info(sock: client.TLSSocket) -> None:
     """
     Receives the server's encrypted extensions, certificate, and certificate verification.
 
     Also verifies the certificate's validity.
     """
-    # TODO: implement
-    (ty1, data1) = sock.recv_handshake_record()
-    (ty2, data2) = sock.recv_handshake_record()
-    (ty3, data3) = sock.recv_handshake_record()
+    (ty1, data1) = sock.recv_handshake_record() # Encrypted extensions
+    (ty2, data2) = sock.recv_handshake_record() # Certificate 
+    (ty3, data3) = sock.recv_handshake_record() # Certificate verify
 
-    print(ty1)
-    print(ty2)
-    print(ty3)
+    # TODO: Implement receipt of encrypted extensions and cerificate verification
+    # For now, assert the types of the handshake records received
+    assert ty1 == HandshakeType.ENCRYPTED_EXTENSIONS
+    assert ty2 == HandshakeType.CERTIFICATE
+    assert ty3 == HandshakeType.CERTIFICATE_VERIFY
 
-    return True
+    return
 
 
 def finish_handshake(sock: client.TLSSocket, handshake_secret: bytes) -> None:
     """
     Receives the server finish, sends the client finish, and derives the application keys.
-
-    Takes in the shared secret from key exchange.
     """
-
+    # Verify server finish
+    cur_transcript_hash = sock.transcript_hash.digest()
+    server_finish_own = cryptoimpl.compute_finish(sock.server_params.original_secret, cur_transcript_hash)
     (server_finish_ty, server_finish_data) = sock.recv_handshake_record()
-    # TODO: Verify server finish
-
     
-    # Send client finish
-    # TODO: Move this into cryptoimpl.compute_finish
-    finished_key = cryptoimpl.labeled_sha384_hkdf(secret=sock.client_params.original_secret, label=b"finished", context=b"", length=48)
-    finished_hash = sock.transcript_hash.digest()
-    verify_data = cryptoimpl.sha384_hkdf_extract(salt=finished_key, data=finished_hash)
-    sock.send_handshake_record(HandshakeType.FINISHED, verify_data)
+    assert server_finish_ty == HandshakeType.FINISHED, "Invalid handshake type for SERVER FINISH"
+    if server_finish_data != server_finish_own:
+        raise Exception("Server finish verification failed: Data mismatch")
 
-
-def perform_handshake(sock: client.TLSSocket) -> None:
-    key_exchange_keypair = cryptoimpl.generate_x25519_keypair()
-    send_client_hello(sock, key_exchange_keypair[1])
-    peer_pubkey = recv_server_hello(sock)
-    shared_secret = cryptoimpl.derive_shared_x25519_key(
-        key_exchange_keypair[0], peer_pubkey
-    )
-    transcript_hash = sock.transcript_hash.digest()
-    (handshake_secret, client_params, server_params) = (
-        cryptoimpl.derive_handshake_params(shared_secret, transcript_hash)
-    )
-    
-    sock.client_params = client_params
-    sock.server_params = server_params
-
-    # client_handshake_key = cryptoimpl.labeled_sha384_hkdf(secret=client_secret, label=b"key", context=b"", len=32)
-    # server_handshake_key = cryptoimpl.labeled_sha384_hkdf(secret=server_secret, label=b"key", context=b"", len=32)
-
-    # client_handshake_iv = cryptoimpl.labeled_sha384_hkdf(secret=client_secret, label=b"iv", context=b"", len=12)
-    # server_handshake_iv = cryptoimpl.labeled_sha384_hkdf(secret=server_secret, label=b"iv", context=b"", len=12)
-
-    recv_server_info(sock)
-    finish_handshake(sock, handshake_secret)
-
+    # Key derivation for application keys
     (client_params, server_params) = (
         cryptoimpl.derive_application_params(handshake_secret, sock.transcript_hash.digest())
     )
 
-    print('fuckyou')
+    # Send client finish
+    cur_transcript_hash = sock.transcript_hash.digest()
+    client_finish = cryptoimpl.compute_finish(sock.client_params.original_secret, cur_transcript_hash)
+    sock.send_handshake_record(HandshakeType.FINISHED, client_finish)
+
+    # Set the socket params to the application key params
+    sock.client_params = client_params # Set sock.client_params to the application key params
+    sock.server_params = server_params # Set sock.server_params to the application key params
+
+
+def recv_new_session_tickets(sock: client.TLSSocket) -> None:
+    (ty1, data1) = sock.recv_handshake_record() # New session ticket 1
+    (ty2, data2) = sock.recv_handshake_record() # New session ticket 2 
+
+    # For this simplified implementation, we are not caching the session tokens for reuse later
+    # Instead, we assert that the record types are HandShakeType.NEW_SESSION_TICKET
+    assert ty1 == HandshakeType.NEW_SESSION_TICKET
+    assert ty2 == HandshakeType.NEW_SESSION_TICKET
+
+
+def perform_handshake(sock: client.TLSSocket) -> None:
+    # Generate key pair for key derivation
+    key_exchange_keypair = cryptoimpl.generate_x25519_keypair()
+
+    # Send client hello and receive server hello
+    send_client_hello(sock, key_exchange_keypair[1])
+    peer_pubkey = recv_server_hello(sock)
+
+    # Key derivation for handshake keys
+    shared_secret = cryptoimpl.derive_shared_x25519_key(
+        key_exchange_keypair[0], peer_pubkey
+    )
+    (handshake_secret, client_params, server_params) = (
+        cryptoimpl.derive_handshake_params(shared_secret, sock.transcript_hash.digest())
+    )
+    sock.client_params = client_params # Set sock.client_params to the handshake key params
+    sock.server_params = server_params # Set sock.server_params to the handshake key params
+
+    # Handle the server's certificates, and finish the handshake
+    recv_server_info(sock)
+    finish_handshake(sock, handshake_secret)
+
+
+def interact_with_server(sock: client.TLSSocket) -> None:
+    # Receive new session tickets (we do not use store them in this simplified implementation)
+    recv_new_session_tickets(sock)
+
+    # Wait for all the handshake trace data from openssl s_server to come through
+    import time
+    time.sleep(1)
+
+    while True:
+        # Prompt user for data to send to the openssl s_server
+        print("\nTLS v1.3 connection established!\nSend something to the openssl server > ", end="")
+        user_data = input()
+        sock.send_record(RecordType.APPLICATION_DATA, user_data.encode())
+        print() # For a newline
+
+        # Wait for the "Received Record" trace data
+        time.sleep(1.5)
+
+        # Server's turn to send data
+        print("\n\nNow you are the server, pls reply > ", end="")
+        (ty, data) = sock.recv_record()
+        print() # For a newline
+        assert ty == RecordType.APPLICATION_DATA
+        print(f"Data received from the server: {data}")
+
+        # Wait for the "Sent Record" trace data
+        time.sleep(1.5)

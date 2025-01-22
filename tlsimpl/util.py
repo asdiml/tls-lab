@@ -64,3 +64,10 @@ def unpack_extension(data: bytes) -> tuple[ExtensionType, bytes, bytes]:
     """
     ty = int.from_bytes(data[:2], "big")
     return (ExtensionType(ty), *unpack_varlen(data[2:]))
+
+
+def extract_byte_substr(n, data: bytes) -> tuple[bytes, bytes]:
+    """
+    Extracts the first n bytes from data and returns it as well as the remaining bytes as a pair
+    """
+    return (data[:n], data[n:])

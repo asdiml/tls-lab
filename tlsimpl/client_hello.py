@@ -1,4 +1,17 @@
-from .. import consts, util
+from tlsimpl import consts, util
+import random
+
+def client_hello_without_ext():
+    client_version = b'\x03\x03' # TLS v1.2 (the RFC describes how TLS v1.3 packets must be disguised as TLS v1.2 packets, with the v1.3 being specified in extensions)
+    client_rand = random.randbytes(32)
+    session_id = b'\x00' # No longer needed - we are putting a null byte here to indicate this
+    cipher_suites = util.pack_varlen(util.pack(consts.CipherSuite.TLS_AES_256_GCM_SHA384, width=2)) # Only accept the TLS_AES_256_GCM_SHA384 cipher suite
+    compression_methods = util.pack_varlen(b'\x00', len_width=1) # Compression is not allowed in TLS v1.3
+    return client_version + client_rand + session_id + cipher_suites + compression_methods
+
+def client_hello_exts(key_exchange_pubkey: bytes):
+    ext_data = supported_ver_ext() + sign_alg_ext() + supported_grps_ext() + key_share_ext(key_exchange_pubkey)
+    return util.pack_varlen(ext_data, len_width=2)
 
 def supported_ver_ext():    
     tls_ver = b'\x03\x04' # Specifier for TLS version 1.3 => 03 04

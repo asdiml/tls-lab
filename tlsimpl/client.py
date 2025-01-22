@@ -33,6 +33,7 @@ class TLSSocket:
         self.recv_seq_num = 0
         self.transcript_hash = hashlib.sha384()
         handshake.perform_handshake(self)
+        handshake.interact_with_server(self)
 
     @staticmethod
     def create_connection(*args: Any, **kwargs: Any) -> TLSSocket:
@@ -45,7 +46,7 @@ class TLSSocket:
         """
         Utility function to send a single record.
 
-        Will encrypt the record if `self.encryption_key` is set.
+        Will encrypt the record if `self.client_params` is set.
 
         Records are specified in RFC8446 section 5.
         """

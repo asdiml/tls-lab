@@ -28,7 +28,6 @@ def derive_shared_x25519_key(privkey: bytes, peer_pubkey: bytes) -> bytes:
     """
     Derive a shared key from private key and peer's public key.
     """
-
     priv = X25519PrivateKey.from_private_bytes(privkey)
     pub = X25519PublicKey.from_public_bytes(peer_pubkey)
     return priv.exchange(pub)
@@ -114,12 +113,6 @@ def derive_handshake_params(
     server_iv = labeled_sha384_hkdf(secret=server_secret, label=b"iv", context=b"", length=12)
     client_params = AESParams(client_secret, client_key, util.unpack(client_iv))
     server_params = AESParams(server_secret, server_key, util.unpack(server_iv))
-
-    print(f"{client_secret=}")
-    print(f"{server_secret=}")
-    print(f"{client_params=}")
-    print(f"{server_params=}")
-
     return (handshake_secret, client_params, server_params)
 
 
@@ -162,6 +155,6 @@ def compute_finish(secret: bytes, transcript_hash: bytes) -> bytes:
 
     Takes in the client/server secret as well as the transcript hash.
     """
-    # TODO: compute HMAC
-    
-    return b"???"
+    finished_key = labeled_sha384_hkdf(secret, label=b"finished", context=b"", length=48)
+    verify_data = sha384_hkdf_extract(salt=finished_key, data=transcript_hash)
+    return verify_data
